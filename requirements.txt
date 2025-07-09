@@ -1,0 +1,10 @@
+streamlit
+sentence-transformers
+pinecone
+openai
+python-dotenv
+plotly
+pandas
+arxiv
+tqdm
+streamlit-lottie
