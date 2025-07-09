@@ -112,10 +112,7 @@ This project implements a modern Retrieval-Augmented Generation (RAG) pipeline f
 
 ---
 
-## License
-MIT
 
----
 
 ## Credits
 Built with ❤️ by **Vijayshree Vaibhav** | 7x National Hackathon Winner  
