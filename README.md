@@ -91,14 +91,7 @@ This project implements a modern Retrieval-Augmented Generation (RAG) pipeline f
 - `README.md` — This file
 - `requirements.txt` — Python dependencies
 
----
 
-## (Optional) Notes
-- If you change the embedding model or Pinecone region, update the constants in `main.py` and `app.py` accordingly.
-- If you want to re-populate the database, re-run `python main.py`.
-- For more info on Pinecone regions, see your [Pinecone Console](https://app.pinecone.io/).
-
----
 
 ## Screenshots
 
