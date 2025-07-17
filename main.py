@@ -74,8 +74,6 @@ def download_papers(category, max_results=15):
     )
     papers = []
     
-    print(f"Fetching {max_results} papers from category: {category}")
-    
     for result in search.results():
         papers.append({
             'title': result.title,
@@ -94,7 +92,7 @@ def chunk_text(text, chunk_size=3):
     
     for i in range(0, len(sentences), chunk_size):
         chunk = ' '.join(sentences[i:i+chunk_size])
-        if chunk.strip():  # Only add non-empty chunks
+        if chunk.strip():
             chunks.append(chunk)
     
     return chunks
@@ -107,7 +105,7 @@ def embed_and_upsert(df, model, index):
         chunks = chunk_text(row['abstract'], CHUNK_SIZE)
         
         for i, chunk in enumerate(chunks):
-            if chunk.strip():  # Skip empty chunks
+            if chunk.strip():
                 passage_id = f"{idx}-{i}"
                 embedding = model.encode(chunk)
                 meta = {
@@ -117,7 +115,6 @@ def embed_and_upsert(df, model, index):
                     'authors': row['authors']
                 }
                 
-                # Upsert to Pinecone
                 index.upsert([(passage_id, embedding.tolist(), meta)])
                 total_chunks += 1
     
@@ -158,7 +155,6 @@ def query_pipeline(user_query, model, index):
     # Step 4: Generation with Gemini
     start = time.time()
     
-    # Create comprehensive prompt for Gemini
     prompt = f"""You are a helpful assistant for academic Q&A. Answer the question based on the provided research context.
 
 Context from recent research papers:
@@ -166,7 +162,7 @@ Context from recent research papers:
 
 Question: {user_query}
 
-Please provide a comprehensive and accurate answer based on the research context provided above. If the context doesn't contain enough information to fully answer the question, please say so."""
+Please provide a comprehensive and accurate answer based on the research context provided above."""
 
     try:
         answer = call_gemini_api(prompt)
@@ -193,12 +189,10 @@ if __name__ == "__main__":
     # Check if API keys are available
     if not GEMINI_API_KEY:
         print("❌ Error: GEMINI_API_KEY not found in environment variables")
-        print("Please add your Gemini API key to your .env file")
         exit(1)
     
     if not PINECONE_API_KEY:
         print("❌ Error: PINECONE_API_KEY not found in environment variables")
-        print("Please add your Pinecone API key to your .env file")
         exit(1)
     
     # Download papers
@@ -233,7 +227,7 @@ if __name__ == "__main__":
                 )
             )
             print("⏳ Waiting for index to be ready...")
-            time.sleep(30)  # Wait for index to be ready
+            time.sleep(30)
         except Exception as e:
             print(f"❌ Error creating index: {e}")
             exit(1)
@@ -253,59 +247,4 @@ if __name__ == "__main__":
     else:
         print("✅ Index already contains data")
 
-    # Query loop
-    print("\n" + "=" * 50)
-    print("🎯 RAG Pipeline Ready! Ask your questions:")
-    print("💡 Example: 'What are recent advances in transformer architectures?'")
-    print("🚪 Type 'exit' to quit")
-    print("=" * 50)
-    
-    while True:
-        user_query = input("\n🔍 Enter your question: ").strip()
-        
-        if user_query.lower() == 'exit':
-            print("👋 Goodbye!")
-            break
-        
-        if not user_query:
-            print("❌ Please enter a valid question")
-            continue
-        
-        try:
-            print("⚙️ Processing your query...")
-            answer, latency = query_pipeline(user_query, model, index)
-            
-            print(f"\n📝 Answer:\n{answer}\n")
-            print("⚡ Performance Metrics:")
-            print(f"  📊 Embedding: {latency['embedding']:.3f}s")
-            print(f"  🔍 Search: {latency['search']:.3f}s") 
-            print(f"  🤖 Generation: {latency['generation']:.3f}s")
-            print(f"  ⏱️ Total: {latency['total']:.3f}s")
-            
-            # Log latency
-            log_row = {
-                'timestamp': time.time(),
-                'query': user_query, 
-                'answer': answer, 
-                'embedding': latency['embedding'],
-                'search': latency['search'],
-                'generation': latency['generation'],
-                'total': latency['total']
-            }
-            log_df = pd.DataFrame([log_row])
-            
-            if not os.path.exists('latency_log.csv'):
-                log_df.to_csv('latency_log.csv', index=False)
-                print("📊 Created latency log file")
-            else:
-                log_df.to_csv('latency_log.csv', mode='a', header=False, index=False)
-                print("📊 Logged performance metrics")
-                
-        except KeyboardInterrupt:
-            print("\n\n⚠️ Interrupted by user")
-            break
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            print("Please try again or type 'exit' to quit")
-
-    print("🎉 Done! Thanks for using the RAG Pipeline!")
+    print("🎯 RAG Pipeline Ready!")
