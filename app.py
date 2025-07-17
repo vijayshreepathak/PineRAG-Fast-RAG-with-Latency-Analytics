@@ -3,21 +3,20 @@ import time
 import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
-import requests
+import openai
 from dotenv import load_dotenv
 import plotly.graph_objects as go
 from pinecone import Pinecone, ServerlessSpec
 import streamlit_lottie
+import requests
 from datetime import datetime
-import json
 
 # Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
-# Gemini API endpoint
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 INDEX_NAME = 'rag-latency-demo'
@@ -41,42 +40,6 @@ if INDEX_NAME not in pc.list_indexes().names():
     )
 
 index = pc.Index(INDEX_NAME)
-
-def call_gemini_api(prompt):
-    """Call Gemini API with the given prompt"""
-    headers = {
-        'Content-Type': 'application/json',
-        'X-goog-api-key': GEMINI_API_KEY
-    }
-    
-    data = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 1000,
-            "topP": 0.8,
-            "topK": 40
-        }
-    }
-    
-    response = requests.post(GEMINI_API_URL, headers=headers, json=data)
-    
-    if response.status_code == 200:
-        result = response.json()
-        if 'candidates' in result and len(result['candidates']) > 0:
-            return result['candidates'][0]['content']['parts'][0]['text']
-        else:
-            return "No response generated"
-    else:
-        raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
 
 def query_pipeline(user_query, model):
     latency = {}
@@ -106,28 +69,20 @@ def query_pipeline(user_query, model):
         } for m in res['matches']
     ]
 
-    # Generation with Gemini
+    # Generation
     start = time.time()
-    
-    # Create prompt for Gemini
-    prompt = f"""You are a helpful assistant for academic Q&A. Answer the question based on the provided context.
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant for academic Q&A."},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
+        ]
+    )
+    latency['Generation'] = time.time() - start
 
-Context:
-{context}
-
-Question: {user_query}
-
-Please provide a comprehensive and accurate answer based on the context provided above."""
-
-    try:
-        answer = call_gemini_api(prompt)
-        latency['Generation'] = time.time() - start
-        latency['Total'] = time.time() - start_total
-        return answer, passages, latency
-    except Exception as e:
-        latency['Generation'] = time.time() - start
-        latency['Total'] = time.time() - start_total
-        return f"Error generating response: {str(e)}", passages, latency
+    latency['Total'] = time.time() - start_total
+    answer = response.choices[0].message.content
+    return answer, passages, latency
 
 # Initialize session state
 if "theme" not in st.session_state:
@@ -137,7 +92,7 @@ if "query_count" not in st.session_state:
 
 # Page configuration
 st.set_page_config(
-    page_title="🚀 Mini RAG Pipeline Pro - Gemini",
+    page_title="🚀 Mini RAG Pipeline Pro",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -182,19 +137,19 @@ if st.session_state.theme == "dark":
     .stTextInput > div > div > input {
         background-color: #2d2d2d;
         color: #f8f8f2;
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     .metric-card {
         background: linear-gradient(135deg, #2d2d2d 0%, #1a1a2e 100%);
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     .passage-card {
         background: linear-gradient(135deg, #2d2d2d 0%, #1a1a2e 100%);
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     .answer-container {
         background: linear-gradient(135deg, #2d2d2d 0%, #1a1a2e 100%);
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -215,19 +170,19 @@ else:
     .stTextInput > div > div > input {
         background-color: #ffffff;
         color: #2c3e50;
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     .passage-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     .answer-container {
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid #4285f4;
+        border: 1px solid #667eea;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -237,9 +192,9 @@ st.markdown("""
 <style>
 /* Global Styles */
 :root {
-    --primary-color: #4285f4;
-    --secondary-color: #34a853;
-    --accent-color: #ea4335;
+    --primary-color: #667eea;
+    --secondary-color: #764ba2;
+    --accent-color: #f093fb;
     --success-color: #28a745;
     --warning-color: #ffc107;
     --error-color: #dc3545;
@@ -265,7 +220,7 @@ st.markdown("""
 .stButton > button:hover {
     background: linear-gradient(90deg, var(--accent-color) 0%, var(--primary-color) 100%);
     transform: translateY(-2px);
-    box-shadow: 0 6px 25px rgba(66,133,244,0.3);
+    box-shadow: 0 6px 25px rgba(102,126,234,0.3);
 }
 
 /* Form Styling */
@@ -279,7 +234,7 @@ st.markdown("""
 
 .stTextInput > div > div > input:focus {
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 3px rgba(66,133,244,0.1);
+    box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
 }
 
 /* Header Styling */
@@ -323,7 +278,7 @@ st.markdown("""
 
 .metric-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 30px rgba(66,133,244,0.2);
+    box-shadow: 0 8px 30px rgba(102,126,234,0.2);
 }
 
 .metric-value {
@@ -351,7 +306,7 @@ st.markdown("""
 }
 
 .passage-card:hover {
-    box-shadow: 0 8px 30px rgba(66,133,244,0.25);
+    box-shadow: 0 8px 30px rgba(102,126,234,0.25);
     transform: translateY(-3px);
 }
 
@@ -396,7 +351,7 @@ with st.sidebar:
     # System info
     st.markdown("""
     **🛠️ Technical Stack:**
-    - 🧠 **LLM:** Google Gemini 2.0 Flash
+    - 🧠 **LLM:** OpenAI GPT-4
     - 🔍 **Embeddings:** all-MiniLM-L6-v2
     - 🗄️ **Vector DB:** Pinecone
     - 📊 **Retrieval:** Top-3 Similarity Search
@@ -435,7 +390,7 @@ st.markdown("""
         🚀 Mini RAG Pipeline Pro
     </h1>
     <p style="font-size: 1.3rem; opacity: 0.95; margin-bottom: 0;">
-        Advanced Retrieval-Augmented Generation powered by Google Gemini & Pinecone
+        Advanced Retrieval-Augmented Generation powered by GPT-4 & Pinecone
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -538,7 +493,7 @@ with col2:
                 
                 latency_df = pd.DataFrame(list(latency.items()), columns=["Stage", "Seconds"])
                 
-                colors = ['#4285f4', '#34a853', '#ea4335', '#fbbc04']
+                colors = ['#667eea', '#764ba2', '#f093fb', '#4ecdc4']
                 
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
@@ -609,7 +564,7 @@ with col2:
 # Enhanced footer
 st.markdown("""
 <div class="footer">
-    <p>🚀 <strong>Mini RAG Pipeline Pro</strong> | Powered by Google Gemini & Pinecone</p>
+    <p>🚀 <strong>Mini RAG Pipeline Pro</strong> | Powered by OpenAI GPT-4 & Pinecone</p>
     <p>Built with ❤️ by <strong>Vijayshree Vaibhav</strong> | 7x National Hackathon Winner</p>
     <p><a href="https://vijayshreepathak.netlify.app/" style="color:var(--primary-color); text-decoration:none;">🌐 Portfolio</a> | 
     <a href="https://www.linkedin.com/in/vijayshreevaibhav" style="color:var(--primary-color); text-decoration:none;">💼 LinkedIn</a></p>
